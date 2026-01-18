@@ -31,7 +31,11 @@ export function TreeItem(props) {
         style={{ textAlign: "left" }}
       >
         {props.marker ? (
-          <span className={`${selected ? "text-neutral-700" : "text-neutral-500"} text-xs leading-none shrink-0`} style={{ width: 10, marginRight: 2 }} aria-hidden>
+          <span
+            className={`${selected ? "text-neutral-700" : "text-neutral-500"} text-xs leading-none shrink-0`}
+            style={{ width: 10, marginRight: 6 }}
+            aria-hidden
+          >
             {props.marker}
           </span>
         ) : (

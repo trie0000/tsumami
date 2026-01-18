@@ -31,7 +31,7 @@ export function Editor(props) {
     }
     const first = project.flowers?.[0];
     if (first) setExpandedFlowers({ [first.id]: true });
-  }, [EXPAND_KEY]);
+  }, [EXPAND_KEY, project.flowers]);
 
   useEffect(() => {
     try {
@@ -223,15 +223,12 @@ export function Editor(props) {
 
   // --- Add/Delete ---
   const deleteFlowerById = (flowerId) => {
-    // flower 行のゴミ箱：対象Flowerを削除
     applyUpdate((d) => {
       d.flowers = (d.flowers || []).filter((x) => x.id !== flowerId);
     }, true);
 
-    // 選択が消えるので安全にProjectへ
     setSelection({ kind: "project" });
 
-    // 展開状態も掃除
     setExpandedFlowers((prev) => {
       const n = { ...(prev || {}) };
       delete n[flowerId];
@@ -240,19 +237,16 @@ export function Editor(props) {
   };
 
   const deleteLayerById = (flowerId, layerId) => {
-    // layer 行のゴミ箱：対象Layerを削除
     applyUpdate((d) => {
       const f = (d.flowers || []).find((x) => x.id === flowerId);
       if (!f) return;
       f.layers = (f.layers || []).filter((x) => x.id !== layerId);
-      // order を詰める
       f.layers
         .slice()
         .sort((a, b) => a.order - b.order)
         .forEach((l, i) => (l.order = i + 1));
     }, true);
 
-    // layer 選択が無効になるので、親のflowerへ戻す
     setSelection({ kind: "flower", flowerId });
   };
 
@@ -311,7 +305,6 @@ export function Editor(props) {
       locked: false,
     };
 
-    // 新しい外側は、1つ内側の花びらの「間」に見えるように角度を半分ずらす
     if (outer) {
       const innerStep = 360 / Math.max(1, outer.petalCount);
       base.offsetAngle = (outer.offsetAngle ?? 0) + innerStep / 2;
@@ -330,6 +323,7 @@ export function Editor(props) {
     setExpandedFlowers((prev) => ({ ...prev, [f.id]: true }));
   };
 
+  // 花行の + / −（外側レイヤー）
   const addOuterLayer = (flowerId) => {
     const f = project.flowers.find((x) => x.id === flowerId);
     if (!f) return;
@@ -352,7 +346,6 @@ export function Editor(props) {
       locked: false,
     };
 
-    // 新しい外側は、1つ内側の花びらの「間」に見えるように角度を半分ずらす
     if (outer) {
       const innerStep = 360 / Math.max(1, outer.petalCount);
       base.offsetAngle = (outer.offsetAngle ?? 0) + innerStep / 2;
@@ -383,14 +376,12 @@ export function Editor(props) {
       const df = d.flowers.find((x) => x.id === flowerId);
       if (!df) return;
       df.layers = df.layers.filter((x) => x.id !== outerLayer.id);
-      // order を詰める
       df.layers
         .slice()
         .sort((a, b) => a.order - b.order)
         .forEach((l, i) => (l.order = i + 1));
     }, true);
 
-    // 選択が無効になるので、親のflowerへ戻す
     if (selection.kind === "layer" && selection.layerId === outerLayer.id) {
       setSelection({ kind: "flower", flowerId });
     } else if (selection.kind === "petal" && selection.layerId === outerLayer.id) {
@@ -423,7 +414,8 @@ export function Editor(props) {
     }
   };
 
-  const selectedFlowerId = selection.kind === "flower" || selection.kind === "layer" || selection.kind === "petal" ? selection.flowerId : null;
+  const selectedFlowerId =
+    selection.kind === "flower" || selection.kind === "layer" || selection.kind === "petal" ? selection.flowerId : null;
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -453,7 +445,7 @@ export function Editor(props) {
             </div>
           </div>
 
-          {/* + buttons moved to top */}
+          {/* + buttons */}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button className="rounded-xl border bg-white px-3 py-2 text-xs hover:bg-neutral-50" onClick={addFlower}>
               + Flower
@@ -470,38 +462,58 @@ export function Editor(props) {
           </div>
 
           <div className="mt-2 flex flex-wrap gap-2">
-            <button className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50" onClick={() => props.onArrangeFlower("front")}>
+            <button
+              className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50"
+              onClick={() => props.onArrangeFlower("front")}
+            >
               Front
             </button>
-            <button className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50" onClick={() => props.onArrangeFlower("back")}>
+            <button
+              className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50"
+              onClick={() => props.onArrangeFlower("back")}
+            >
               Back
             </button>
-            <button className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50" onClick={() => props.onArrangeFlower("forward")}>
+            <button
+              className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50"
+              onClick={() => props.onArrangeFlower("forward")}
+            >
               +1
             </button>
-            <button className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50" onClick={() => props.onArrangeFlower("backward")}>
+            <button
+              className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50"
+              onClick={() => props.onArrangeFlower("backward")}
+            >
               -1
             </button>
           </div>
 
+          {/* Tree */}
           <div className="mt-3 max-h-[420px] overflow-y-auto pr-1">
-            <TreeItem label={project.title} selected={selection.kind === "project"} onClick={() => setSelection({ kind: "project" })} level={0} />
+            <TreeItem
+              label={project.title}
+              selected={selection.kind === "project"}
+              onClick={() => setSelection({ kind: "project" })}
+              level={0}
+            />
 
             {project.flowers.map((f) => {
               const isDirectFlowerSelected = selection.kind === "flower" && selection.flowerId === f.id;
               const isChildSelected = (selection.kind === "layer" || selection.kind === "petal") && selection.flowerId === f.id;
 
-              // 要件: レイヤー選択時は「花の行をアクティブ背景にしない」
-              // → 花行の selected は direct flowerのみ
+              // ✅ レイヤー選択時に花行をアクティブにしない
               const flowerSelected = isDirectFlowerSelected;
 
-              // 花行に表示するマーカー: directじゃないが子が選択中なら ● を表示
+              // ✅ マーカー：花自体=● / 子が選択中=◦
               const flowerMarker = isDirectFlowerSelected ? "●" : isChildSelected ? "◦" : "";
 
               const expanded = isExpanded(f.id);
               const hasLayers = f.layers && f.layers.length > 0;
+
+              // ✅ 花行の右側： + / − / ゴミ箱（TrashIcon）
+              // - ゴミ箱は花が直接選択されている時だけ出す
               const flowerActions = (
-                <>
+                <div className="flex items-center gap-1">
                   <button
                     className="flex h-5 w-5 items-center justify-center rounded text-xs leading-none p-0 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                     title="Add outer layer"
@@ -513,6 +525,7 @@ export function Editor(props) {
                   >
                     +
                   </button>
+
                   {hasLayers && (
                     <button
                       className="flex h-5 w-5 items-center justify-center rounded text-xs leading-none p-0 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
@@ -526,13 +539,29 @@ export function Editor(props) {
                       −
                     </button>
                   )}
-                </>
+
+                  {isDirectFlowerSelected && (
+                    <button
+                      className="ml-1 flex h-6 w-6 items-center justify-center rounded hover:bg-red-50"
+                      title="Delete flower"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteFlowerById(f.id);
+                      }}
+                      aria-label="Delete flower"
+                    >
+                      <TrashIcon className="h-4 w-4 text-red-600" />
+                    </button>
+                  )}
+                </div>
               );
+
               return (
                 <div key={f.id}>
+                  {/* ここを “昔の見た目” に寄せる：三角を小さく、行高も詰める */}
                   <div className="flex items-center gap-0">
                     <button
-                      className={`flex h-6 w-6 items-center justify-center rounded text-xs leading-none p-0 ${
+                      className={`-ml-1 flex h-5 w-5 items-center justify-center rounded text-[11px] leading-none p-0 ${
                         expanded ? "text-neutral-900" : "text-neutral-500"
                       } hover:bg-neutral-50`}
                       title={expanded ? "Collapse layers" : "Expand layers"}
@@ -542,9 +571,11 @@ export function Editor(props) {
                       }}
                       aria-label={expanded ? "collapse" : "expand"}
                     >
-                      {expanded ? "▾" : "▸"}
+                      {expanded ? "▼" : "▶︎"}
                     </button>
-                    <div className="flex-1 min-w-0 -ml-0.5">
+                    
+                    {/* TreeItem 全体も少し左へ寄せる */}
+                    <div className="flex-1 min-w-0 -ml-1">
                       <TreeItem
                         label={f.name}
                         marker={flowerMarker}
@@ -554,9 +585,8 @@ export function Editor(props) {
                         rightActions={flowerActions}
                         onClick={() => scheduleFlowerRowClick(f.id)}
                         onDoubleClick={() => handleFlowerRowDoubleClick(f.id)}
-                        // flower 行は左詰め（パディングを最小限に）
                         level={0}
-                        leftOffset={-12}
+                        leftOffset={-18}   // ★ここ変更（-12 → -18）
                       />
                     </div>
                   </div>
@@ -565,24 +595,42 @@ export function Editor(props) {
                     f.layers
                       .slice()
                       .sort((a, b) => a.order - b.order)
-                      .map((l) => (
-                        <TreeItem
-                          key={l.id}
-                          label={`${l.order}. ${l.name}`}
-                          marker={(selection.kind === "layer" || selection.kind === "petal") && selection.layerId === l.id ? "●" : ""}
-                          selected={(selection.kind === "layer" || selection.kind === "petal") && selection.layerId === l.id}
-                          showTrash={(selection.kind === "layer" || selection.kind === "petal") && selection.layerId === l.id}
-                          onTrash={() => deleteLayerById(f.id, l.id)}
-                          onClick={() => {
-                            setSelection({ kind: "layer", flowerId: f.id, layerId: l.id });
-                            setExpandedFlowers((prev) => ({ ...prev, [f.id]: true }));
-                          }}
-                          // layer 行はflowerよりインデント（展開ボタン分 + 追加インデント）
-                          level={0}
-                          leftOffset={40}
-                          muted={!l.visible}
-                        />
-                      ))}
+                      .map((l) => {
+                        const isLayerSelected = (selection.kind === "layer" || selection.kind === "petal") && selection.layerId === l.id;
+
+                        return (
+                          <TreeItem
+                            key={l.id}
+                            label={`${l.order}. ${l.name}`}
+                            marker={isLayerSelected ? "●" : ""}
+                            selected={isLayerSelected}
+                            // ✅ layer側のゴミ箱：layer選択時のみ表示（見た目はTrashIcon）
+                            rightActions={
+                              isLayerSelected ? (
+                                <button
+                                  className="ml-1 flex h-6 w-6 items-center justify-center rounded hover:bg-red-50"
+                                  title="Delete layer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteLayerById(f.id, l.id);
+                                  }}
+                                  aria-label="Delete layer"
+                                >
+                                  <TrashIcon className="h-4 w-4 text-red-600" />
+                                </button>
+                              ) : null
+                            }
+                            onClick={() => {
+                              setSelection({ kind: "layer", flowerId: f.id, layerId: l.id });
+                              setExpandedFlowers((prev) => ({ ...prev, [f.id]: true }));
+                            }}
+                            // ✅ layer行はインデント（見た目改善）
+                            level={0}
+                            leftOffset={18}
+                            muted={!l.visible}
+                          />
+                        );
+                      })}
                 </div>
               );
             })}
@@ -608,7 +656,10 @@ export function Editor(props) {
           </div>
 
           <div className="mt-3">
-            <button className="w-full rounded-xl border bg-white px-3 py-2 text-xs hover:bg-neutral-50" onClick={() => fileInputRef.current?.click()}>
+            <button
+              className="w-full rounded-xl border bg-white px-3 py-2 text-xs hover:bg-neutral-50"
+              onClick={() => fileInputRef.current?.click()}
+            >
               Import JSON
             </button>
             <input
@@ -640,10 +691,16 @@ export function Editor(props) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-sm font-semibold">Canvas</div>
               <div className="flex items-center gap-2">
-                <button className="rounded-xl border px-3 py-1.5 text-xs hover:bg-neutral-50" onClick={() => setZoom((z) => clamp(Number((z * 1.1).toFixed(3)), 0.4, 3))}>
+                <button
+                  className="rounded-xl border px-3 py-1.5 text-xs hover:bg-neutral-50"
+                  onClick={() => setZoom((z) => clamp(Number((z * 1.1).toFixed(3)), 0.4, 3))}
+                >
                   Zoom +
                 </button>
-                <button className="rounded-xl border px-3 py-1.5 text-xs hover:bg-neutral-50" onClick={() => setZoom((z) => clamp(Number((z / 1.1).toFixed(3)), 0.4, 3))}>
+                <button
+                  className="rounded-xl border px-3 py-1.5 text-xs hover:bg-neutral-50"
+                  onClick={() => setZoom((z) => clamp(Number((z / 1.1).toFixed(3)), 0.4, 3))}
+                >
                   Zoom -
                 </button>
                 <button
@@ -746,7 +803,11 @@ export function Editor(props) {
               <PropertyGroup title="Project">
                 <Labeled>
                   <span>title</span>
-                  <input className="w-full rounded-xl border px-3 py-2 text-sm" value={project.title} onChange={(e) => applyUpdate((d) => (d.title = e.target.value))} />
+                  <input
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    value={project.title}
+                    onChange={(e) => applyUpdate((d) => (d.title = e.target.value))}
+                  />
                 </Labeled>
 
                 <Labeled>
@@ -757,19 +818,29 @@ export function Editor(props) {
                     value={project.fabricSquareSize}
                     min={5}
                     max={60}
-                    onChange={(e) => applyUpdate((d) => (d.fabricSquareSize = clamp(Number(e.target.value || 0), 5, 60)))}
+                    onChange={(e) =>
+                      applyUpdate((d) => (d.fabricSquareSize = clamp(Number(e.target.value || 0), 5, 60)))
+                    }
                   />
                 </Labeled>
 
                 <Labeled>
                   <span>notes</span>
-                  <textarea className="w-full rounded-xl border px-3 py-2 text-sm" rows={4} value={project.notes} onChange={(e) => applyUpdate((d) => (d.notes = e.target.value))} />
+                  <textarea
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    rows={4}
+                    value={project.notes}
+                    onChange={(e) => applyUpdate((d) => (d.notes = e.target.value))}
+                  />
                 </Labeled>
 
                 <PropertyGroup title="Palette (MVP)" compact>
                   <div className="grid grid-cols-1 gap-2">
                     {project.palette.map((c) => (
-                      <div key={c.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2">
+                      <div
+                        key={c.id}
+                        className="flex min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2"
+                      >
                         <div className="flex min-w-0 items-center gap-2">
                           <div className="h-4 w-4 rounded" style={{ background: c.hex }} />
                           <div className="text-sm truncate">{c.name}</div>
@@ -887,7 +958,11 @@ export function Editor(props) {
                 <div className="grid grid-cols-2 gap-2">
                   <Labeled>
                     <span>order</span>
-                    <input className="w-full rounded-xl border bg-neutral-50 px-3 py-2 text-sm" value={selectedLayer.order} readOnly />
+                    <input
+                      className="w-full rounded-xl border bg-neutral-50 px-3 py-2 text-sm"
+                      value={selectedLayer.order}
+                      readOnly
+                    />
                   </Labeled>
                   <Labeled>
                     <span>petalType</span>
