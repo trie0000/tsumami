@@ -1374,7 +1374,7 @@ function Editor(props) {
                     >
                       {expanded ? "▾" : "▸"}
                     </button>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <TreeItem
                         label={f.name}
                         marker={flowerMarker}
@@ -1383,9 +1383,9 @@ function Editor(props) {
                         onTrash={() => deleteFlowerById(f.id)}
                         onClick={() => scheduleFlowerRowClick(f.id)}
                         onDoubleClick={() => handleFlowerRowDoubleClick(f.id)}
-                        // flower 行は「レイヤー行より左」に見えるようにする
+                        // flower 行は左詰め
                         level={0}
-                        leftOffset={-12}
+                        leftOffset={0}
                       />
                     </div>
                   </div>
@@ -1406,7 +1406,9 @@ function Editor(props) {
                             setSelection({ kind: "layer", flowerId: f.id, layerId: l.id });
                             setExpandedFlowers((prev) => ({ ...prev, [f.id]: true }));
                           }}
-                          level={2}
+                          // layer 行はflowerよりインデント（展開ボタン分 + 追加インデント）
+                          level={0}
+                          leftOffset={40}
                           muted={!l.visible}
                         />
                       ))}
@@ -1970,7 +1972,7 @@ function TreeItem(props) {
     >
       <button
         type="button"
-        className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm ${rowCls}`}
+        className={`flex min-w-0 flex-1 items-start gap-2 rounded-xl border px-3 py-2 text-left text-sm ${rowCls}`}
         onClick={props.onClick}
       >
         {props.marker ? (
