@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { clamp, uid } from "../utils/helpers";
 import { PETAL_TYPES } from "../utils/constants";
 import { TreeItem } from "./TreeItem";
-import { TrashIcon } from "./TrashIcon";
 import { FlowerSvg } from "./FlowerSvg";
 import { PropertyGroup } from "./PropertyGroup";
 import { Labeled } from "./Labeled";
@@ -49,7 +48,8 @@ export function Editor(props) {
   }, [selection]);
 
   const isExpanded = (flowerId) => expandedFlowers?.[flowerId] ?? false;
-  const toggleExpanded = (flowerId) => setExpandedFlowers((prev) => ({ ...prev, [flowerId]: !(prev?.[flowerId] ?? false) }));
+  const toggleExpanded = (flowerId) =>
+    setExpandedFlowers((prev) => ({ ...prev, [flowerId]: !(prev?.[flowerId] ?? false) }));
 
   // Flower row click behavior:
   // - Single click: select flower + expand
@@ -446,21 +446,11 @@ export function Editor(props) {
           </div>
 
           {/* + buttons */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-1 gap-2">
             <button className="rounded-xl border bg-white px-3 py-2 text-xs hover:bg-neutral-50" onClick={addFlower}>
               + Flower
             </button>
-            <button
-              className={`rounded-xl border px-3 py-2 text-xs ${
-                selectedFlower ? "bg-white hover:bg-neutral-50" : "bg-neutral-100 text-neutral-400"
-              }`}
-              onClick={addLayer}
-              disabled={!selectedFlower}
-            >
-              + Layer
-            </button>
           </div>
-
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               className="rounded-xl border bg-white px-3 py-1.5 text-xs hover:bg-neutral-50"
@@ -499,7 +489,8 @@ export function Editor(props) {
 
             {project.flowers.map((f) => {
               const isDirectFlowerSelected = selection.kind === "flower" && selection.flowerId === f.id;
-              const isChildSelected = (selection.kind === "layer" || selection.kind === "petal") && selection.flowerId === f.id;
+              const isChildSelected =
+                (selection.kind === "layer" || selection.kind === "petal") && selection.flowerId === f.id;
 
               // ✅ レイヤー選択時に花行をアクティブにしない
               const flowerSelected = isDirectFlowerSelected;
@@ -510,12 +501,11 @@ export function Editor(props) {
               const expanded = isExpanded(f.id);
               const hasLayers = f.layers && f.layers.length > 0;
 
-              // ✅ 花行の右側： + / − / ゴミ箱（TrashIcon）
-              // - ゴミ箱は花が直接選択されている時だけ出す
+              // ✅ 花行の右側： + / −（ゴミ箱は TreeItem 側に統一して二重表示を防ぐ）
               const flowerActions = (
                 <div className="flex items-center gap-1">
                   <button
-                    className="flex h-5 w-5 items-center justify-center rounded text-xs leading-none p-0 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                    className="flex h-6 w-6 items-center justify-center rounded-lg border border-neutral-200 bg-white text-xs leading-none text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
                     title="Add outer layer"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -525,10 +515,10 @@ export function Editor(props) {
                   >
                     +
                   </button>
-
+              
                   {hasLayers && (
                     <button
-                      className="flex h-5 w-5 items-center justify-center rounded text-xs leading-none p-0 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                      className="flex h-6 w-6 items-center justify-center rounded-lg border border-neutral-200 bg-white text-xs leading-none text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900"
                       title="Delete outer layer"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -539,23 +529,8 @@ export function Editor(props) {
                       −
                     </button>
                   )}
-
-                  {isDirectFlowerSelected && (
-                    <button
-                      className="ml-1 flex h-6 w-6 items-center justify-center rounded hover:bg-red-50"
-                      title="Delete flower"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteFlowerById(f.id);
-                      }}
-                      aria-label="Delete flower"
-                    >
-                      <TrashIcon className="h-4 w-4 text-red-600" />
-                    </button>
-                  )}
                 </div>
               );
-
               return (
                 <div key={f.id}>
                   {/* ここを “昔の見た目” に寄せる：三角を小さく、行高も詰める */}
@@ -573,20 +548,21 @@ export function Editor(props) {
                     >
                       {expanded ? "▼" : "▶︎"}
                     </button>
-                    
+
                     {/* TreeItem 全体も少し左へ寄せる */}
                     <div className="flex-1 min-w-0 -ml-1">
                       <TreeItem
                         label={f.name}
                         marker={flowerMarker}
                         selected={flowerSelected}
+                        // ✅ 花の削除は TreeItem の showTrash だけ（これでゴミ箱が1つになる）
                         showTrash={isDirectFlowerSelected}
                         onTrash={() => deleteFlowerById(f.id)}
                         rightActions={flowerActions}
                         onClick={() => scheduleFlowerRowClick(f.id)}
                         onDoubleClick={() => handleFlowerRowDoubleClick(f.id)}
                         level={0}
-                        leftOffset={-18}   // ★ここ変更（-12 → -18）
+                        leftOffset={-18}
                       />
                     </div>
                   </div>
@@ -596,7 +572,8 @@ export function Editor(props) {
                       .slice()
                       .sort((a, b) => a.order - b.order)
                       .map((l) => {
-                        const isLayerSelected = (selection.kind === "layer" || selection.kind === "petal") && selection.layerId === l.id;
+                        const isLayerSelected =
+                          (selection.kind === "layer" || selection.kind === "petal") && selection.layerId === l.id;
 
                         return (
                           <TreeItem
@@ -604,29 +581,16 @@ export function Editor(props) {
                             label={`${l.order}. ${l.name}`}
                             marker={isLayerSelected ? "●" : ""}
                             selected={isLayerSelected}
-                            // ✅ layer側のゴミ箱：layer選択時のみ表示（見た目はTrashIcon）
-                            rightActions={
-                              isLayerSelected ? (
-                                <button
-                                  className="ml-1 flex h-6 w-6 items-center justify-center rounded hover:bg-red-50"
-                                  title="Delete layer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteLayerById(f.id, l.id);
-                                  }}
-                                  aria-label="Delete layer"
-                                >
-                                  <TrashIcon className="h-4 w-4 text-red-600" />
-                                </button>
-                              ) : null
-                            }
+                            // ✅ layer側も TreeItem の showTrash に統一（赤ゴミ箱を撤去）
+                            showTrash={isLayerSelected}
+                            onTrash={() => deleteLayerById(f.id, l.id)}
                             onClick={() => {
                               setSelection({ kind: "layer", flowerId: f.id, layerId: l.id });
                               setExpandedFlowers((prev) => ({ ...prev, [f.id]: true }));
                             }}
                             // ✅ layer行はインデント（見た目改善）
                             level={0}
-                            leftOffset={18}
+                            leftOffset={10}
                             muted={!l.visible}
                           />
                         );
@@ -773,7 +737,9 @@ export function Editor(props) {
                     isSelected={selection.kind !== "project" && selectedFlowerId === f.id}
                     isFlowerSelected={selection.kind === "flower" && selection.flowerId === f.id}
                     selectedLayerId={selection.kind === "layer" ? selection.layerId : null}
-                    selectedPetal={selection.kind === "petal" ? { layerId: selection.layerId, index: selection.index } : null}
+                    selectedPetal={
+                      selection.kind === "petal" ? { layerId: selection.layerId, index: selection.index } : null
+                    }
                     onSelect={() => setSelection({ kind: "flower", flowerId: f.id })}
                     onSelectLayer={(layerId) => setSelection({ kind: "layer", flowerId: f.id, layerId })}
                     onSelectPetal={(layerId, index) => setSelection({ kind: "petal", flowerId: f.id, layerId, index })}
@@ -782,7 +748,13 @@ export function Editor(props) {
                     onDoubleClick={() => setSelection({ kind: "flower", flowerId: f.id })}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;
-                      if (!((selection.kind === "flower" && selection.flowerId === f.id) || (selection.kind === "layer" && selection.flowerId === f.id))) return;
+                      if (
+                        !(
+                          (selection.kind === "flower" && selection.flowerId === f.id) ||
+                          (selection.kind === "layer" && selection.flowerId === f.id)
+                        )
+                      )
+                        return;
                       beginFlowerDrag(f.id, e);
                     }}
                   />
@@ -837,10 +809,7 @@ export function Editor(props) {
                 <PropertyGroup title="Palette (MVP)" compact>
                   <div className="grid grid-cols-1 gap-2">
                     {project.palette.map((c) => (
-                      <div
-                        key={c.id}
-                        className="flex min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2"
-                      >
+                      <div key={c.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <div className="h-4 w-4 rounded" style={{ background: c.hex }} />
                           <div className="text-sm truncate">{c.name}</div>
@@ -958,11 +927,7 @@ export function Editor(props) {
                 <div className="grid grid-cols-2 gap-2">
                   <Labeled>
                     <span>order</span>
-                    <input
-                      className="w-full rounded-xl border bg-neutral-50 px-3 py-2 text-sm"
-                      value={selectedLayer.order}
-                      readOnly
-                    />
+                    <input className="w-full rounded-xl border bg-neutral-50 px-3 py-2 text-sm" value={selectedLayer.order} readOnly />
                   </Labeled>
                   <Labeled>
                     <span>petalType</span>
@@ -1148,18 +1113,149 @@ export function Editor(props) {
               </PropertyGroup>
             )}
 
-            {selection.kind === "petal" && selectedFlower && selectedLayer && selectedPetalIndex !== null && (
-              <PropertyGroup title="Petal">
-                <div className="rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
-                  <div className="font-semibold">選択中</div>
-                  <div className="mt-1">
-                    {selectedFlower.name} / {selectedLayer.name} / petal #{selectedPetalIndex + 1}
+            {selection.kind === "petal" && selectedFlower && selectedLayer && selectedPetalIndex !== null && (() => {
+              const findPetalOverride = (layer, index) => layer?.petalOverrides?.find((o) => o.index === index) ?? null;
+              const petalOverride = findPetalOverride(selectedLayer, selectedPetalIndex);
+              const effectiveColorId = petalOverride?.colorId ?? selectedLayer.colorId;
+              const effectivePetalType = petalOverride?.petalType ?? selectedLayer.petalType;
+              const hasOverride = petalOverride != null;
+
+              const updatePetalOverride = (updates) => {
+                applyUpdate((d) => {
+                  const f = d.flowers.find((x) => x.id === selectedFlower.id);
+                  if (!f) return;
+                  const l = f.layers.find((x) => x.id === selectedLayer.id);
+                  if (!l) return;
+
+                  if (!l.petalOverrides) l.petalOverrides = [];
+                  const existing = l.petalOverrides.find((o) => o.index === selectedPetalIndex);
+                  
+                  if (existing) {
+                    // 既存のオーバーライドを更新（既存のプロパティを保持）
+                    if (updates.colorId !== undefined) existing.colorId = updates.colorId;
+                    if (updates.petalType !== undefined) existing.petalType = updates.petalType;
+                    
+                    // colorId と petalType が両方未指定の場合は削除
+                    if (!existing.colorId && !existing.petalType) {
+                      l.petalOverrides = l.petalOverrides.filter((o) => o.index !== selectedPetalIndex);
+                      if (l.petalOverrides.length === 0) l.petalOverrides = undefined;
+                    } else {
+                      // undefined のプロパティは削除（Layerの基本設定に戻すため）
+                      if (existing.colorId === undefined) delete existing.colorId;
+                      if (existing.petalType === undefined) delete existing.petalType;
+                    }
+                  } else {
+                    // 新しいオーバーライドを追加（undefinedのプロパティは除外）
+                    const newOverride = { index: selectedPetalIndex };
+                    if (updates.colorId !== undefined) newOverride.colorId = updates.colorId;
+                    if (updates.petalType !== undefined) newOverride.petalType = updates.petalType;
+                    // colorId または petalType が実際に設定されている場合のみ追加
+                    if (newOverride.colorId !== undefined || newOverride.petalType !== undefined) {
+                      l.petalOverrides.push(newOverride);
+                    }
+                  }
+                }, true);
+              };
+
+              const removePetalOverride = () => {
+                applyUpdate((d) => {
+                  const f = d.flowers.find((x) => x.id === selectedFlower.id);
+                  if (!f) return;
+                  const l = f.layers.find((x) => x.id === selectedLayer.id);
+                  if (!l || !l.petalOverrides) return;
+                  l.petalOverrides = l.petalOverrides.filter((o) => o.index !== selectedPetalIndex);
+                  if (l.petalOverrides.length === 0) l.petalOverrides = undefined;
+                }, true);
+              };
+
+              return (
+                <PropertyGroup title="Petal">
+                  <div className="rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
+                    <div className="font-semibold">選択中</div>
+                    <div className="mt-1">
+                      {selectedFlower.name} / {selectedLayer.name} / petal #{selectedPetalIndex + 1}
+                    </div>
+                    <div className="mt-1 text-neutral-600">
+                      ここで変更する内容は、この花びらだけに適用されます（Layerの基本設定は維持）。
+                    </div>
+                    {hasOverride && (
+                      <div className="mt-2 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-blue-800">
+                        ⚠ この花びらは個別設定が適用されています
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-1 text-neutral-600">ここで変更する内容は、この花びらだけに適用されます（Layerの基本設定は維持）。</div>
-                </div>
-                <div className="text-xs text-neutral-600">（このMVPでは、花びらの個別色/形はCanvas上の選択とLayer基本設定で運用します）</div>
-              </PropertyGroup>
-            )}
+
+                  <Labeled>
+                    <span>colorId</span>
+                    <select
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                      value={effectiveColorId}
+                      onChange={(e) => {
+                        const newColorId = e.target.value;
+                        if (newColorId === selectedLayer.colorId) {
+                          // Layerの基本色と同じ場合は、オーバーライドから削除
+                          updatePetalOverride({ colorId: undefined });
+                        } else {
+                          updatePetalOverride({ colorId: newColorId });
+                        }
+                      }}
+                    >
+                      {project.palette.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-neutral-600">
+                      <span className="h-3 w-3 rounded" style={{ background: paletteMap.get(effectiveColorId)?.hex ?? "#999" }} />
+                      <span>{paletteMap.get(effectiveColorId)?.hex ?? "—"}</span>
+                      {petalOverride?.colorId && (
+                        <span className="ml-2 text-blue-600">（個別設定: {paletteMap.get(selectedLayer.colorId)?.name ?? selectedLayer.colorId} → {paletteMap.get(effectiveColorId)?.name ?? effectiveColorId}）</span>
+                      )}
+                    </div>
+                  </Labeled>
+
+                  <Labeled>
+                    <span>petalType</span>
+                    <select
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                      value={effectivePetalType}
+                      onChange={(e) => {
+                        const newPetalType = e.target.value;
+                        if (newPetalType === selectedLayer.petalType) {
+                          // Layerの基本形状と同じ場合は、オーバーライドから削除
+                          updatePetalOverride({ petalType: undefined });
+                        } else {
+                          updatePetalOverride({ petalType: newPetalType });
+                        }
+                      }}
+                    >
+                      {PETAL_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                    {petalOverride?.petalType && (
+                      <div className="mt-1 text-xs text-blue-600">
+                        個別設定: {selectedLayer.petalType} → {effectivePetalType}
+                      </div>
+                    )}
+                  </Labeled>
+
+                  {hasOverride && (
+                    <div className="mt-3">
+                      <button
+                        className="w-full rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 hover:bg-red-100"
+                        onClick={removePetalOverride}
+                      >
+                        個別設定を削除（Layerの基本設定に戻す）
+                      </button>
+                    </div>
+                  )}
+                </PropertyGroup>
+              );
+            })()}
 
             {!selection || (selection.kind !== "project" && !selectedFlower) ? (
               <div className="mt-4 text-sm text-neutral-600">左のツリーから対象を選択してください。</div>
