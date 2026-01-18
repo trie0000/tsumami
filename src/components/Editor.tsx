@@ -1,3 +1,8 @@
+// Editor.tsx
+// つまみ細工デザイナーのエディターコンポーネント
+// 花びら、レイヤー、花全体の編集を行うメインエディター画面
+// 花びらの個別編集（色・形状の変更）機能を含む
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clamp, uid } from "../utils/helpers";
 import { PETAL_TYPES } from "../utils/constants";
@@ -41,7 +46,7 @@ export function Editor(props) {
   }, [EXPAND_KEY, expandedFlowers]);
 
   useEffect(() => {
-    if (selection.kind === "flower" || selection.kind === "layer" || selection.kind === "petal") {
+    if (selection.kind === "flower" || selection.kind === "layer" || selection.kind === "petal" || selection.kind === "petals") {
       const fid = selection.flowerId;
       setExpandedFlowers((prev) => (prev?.[fid] ? prev : { ...prev, [fid]: true }));
     }
@@ -80,6 +85,22 @@ export function Editor(props) {
   const stageRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // 画面座標(clientX/Y) → SVG座標(viewBox座標) へ変換
+  const clientToSvgPoint = (e) => {
+    const svg = stageRef.current;
+    if (!svg) return { x: 0, y: 0 };
+
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  };
+
   // Canvas view
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -93,7 +114,12 @@ export function Editor(props) {
   }, [zoom, pan]);
 
   const selectedFlower = useMemo(() => {
-    if (selection.kind === "flower" || selection.kind === "layer" || selection.kind === "petal") {
+    if (
+      selection.kind === "flower" ||
+      selection.kind === "layer" ||
+      selection.kind === "petal" ||
+      selection.kind === "petals"
+    ) {
       return project.flowers.find((f) => f.id === selection.flowerId) ?? null;
     }
     return null;
@@ -108,6 +134,56 @@ export function Editor(props) {
   }, [selectedFlower, selection]);
 
   const selectedPetalIndex = selection.kind === "petal" ? selection.index : null;
+  const selectedPetals = selection.kind === "petals" ? selection.petals : [];
+
+  // 複数花びら選択の管理
+  const togglePetalSelection = (flowerId, layerId, index, isShiftPressed) => {
+    if (!isShiftPressed) {
+      // Shiftキーが押されていない場合は単一選択
+      setSelection({ kind: "petal", flowerId, layerId, index });
+      return;
+    }
+
+    // Shiftキーが押されている場合
+    const petalKey = `${layerId}:${index}`;
+    
+    if (selection.kind === "petals" && selection.flowerId === flowerId) {
+      // 既存の複数選択がある場合、追加/削除をトグル
+      const currentPetals = selection.petals || [];
+      const exists = currentPetals.some((p) => `${p.layerId}:${p.index}` === petalKey);
+      
+      if (exists) {
+        // 削除
+        const newPetals = currentPetals.filter((p) => `${p.layerId}:${p.index}` !== petalKey);
+        if (newPetals.length === 0) {
+          // すべて削除された場合は花選択に戻す
+          setSelection({ kind: "flower", flowerId });
+        } else if (newPetals.length === 1) {
+          // 1つだけ残った場合は単一選択に変更
+          setSelection({ kind: "petal", flowerId, layerId: newPetals[0].layerId, index: newPetals[0].index });
+        } else {
+          setSelection({ kind: "petals", flowerId, petals: newPetals });
+        }
+      } else {
+        // 追加
+        setSelection({ kind: "petals", flowerId, petals: [...currentPetals, { layerId, index }] });
+      }
+    } else if (selection.kind === "petal" && selection.flowerId === flowerId) {
+      // 単一選択から複数選択に拡張
+      const currentPetal = { layerId: selection.layerId, index: selection.index };
+      const newPetal = { layerId, index };
+      
+      // 同じ花びらをShift+クリックした場合は何もしない
+      if (`${currentPetal.layerId}:${currentPetal.index}` === petalKey) {
+        return;
+      }
+      
+      setSelection({ kind: "petals", flowerId, petals: [currentPetal, newPetal] });
+    } else {
+      // 他の選択状態（flower、layer、project）から始まる場合は新しい複数選択を開始
+      setSelection({ kind: "petals", flowerId, petals: [{ layerId, index }] });
+    }
+  };
 
   // --- Pan ---
   const panRef = useRef(null);
@@ -138,6 +214,7 @@ export function Editor(props) {
       startPos: { ...f.position },
       moved: false,
       clickPetal: clickPetal ?? null,
+      isShiftPressed: e.shiftKey || false,
     };
   };
 
@@ -162,9 +239,15 @@ export function Editor(props) {
     const d = props.dragRef.current;
     if (!d) return;
 
-    // click (no move) on petal while something selected => petal select
+    // click (no move) on petal while something selected => petal select or multi-select
     if (!d.moved && d.clickPetal) {
-      setSelection({ kind: "petal", flowerId: d.flowerId, layerId: d.clickPetal.layerId, index: d.clickPetal.index });
+      if (d.isShiftPressed) {
+        // Shiftキーが押されている場合は複数選択に追加/削除
+        togglePetalSelection(d.flowerId, d.clickPetal.layerId, d.clickPetal.index, true);
+      } else {
+        // Shiftキーが押されていない場合は単一選択
+        setSelection({ kind: "petal", flowerId: d.flowerId, layerId: d.clickPetal.layerId, index: d.clickPetal.index });
+      }
     } else {
       applyUpdate(() => {}, true);
     }
@@ -178,35 +261,58 @@ export function Editor(props) {
   const beginScaleDrag = (mode, flowerId, e, opts) => {
     e.preventDefault();
     e.currentTarget?.setPointerCapture?.(e.pointerId);
+  
     const f = project.flowers.find((x) => x.id === flowerId);
     if (!f) return;
-
+  
     const startScales =
       mode === "layer" && opts?.layerId
         ? f.layers.filter((l) => l.id === opts.layerId).map((l) => ({ layerId: l.id, scale: l.scale ?? 1 }))
         : f.layers.map((l) => ({ layerId: l.id, scale: l.scale ?? 1 }));
-
+  
+    // ✅ ドラッグ開始点の「中心からの距離（半径）」を保存
+    const p0 = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+    const startDist = Math.hypot(p0.x - cx, p0.y - cy);
+  
     scaleDragRef.current = {
       mode,
       flowerId,
       layerId: opts?.layerId,
-      startClientY: e.clientY,
       startScales,
+      // ✅ 半径ベース
+      startDist,
     };
   };
 
   const updateScaleDrag = (e) => {
     const sd = scaleDragRef.current;
     if (!sd) return;
-    const dy = e.clientY - sd.startClientY;
-    const factor = clamp(1 + dy * 0.006, 0.3, 3);
-
+  
+    const f = project.flowers.find((x) => x.id === sd.flowerId);
+    if (!f) return;
+  
+    // ✅ 現在ポインタの中心からの距離（半径）
+    const p = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+    const dist = Math.hypot(p.x - cx, p.y - cy);
+  
+    // startDist が極端に小さいと暴れるのでガード
+    const startDist = Math.max(1, sd.startDist ?? 1);
+  
+    // ✅ 中心に近づく( dist < startDist ) → factor < 1 → 縮小
+    // ✅ 中心から離れる( dist > startDist ) → factor > 1 → 拡大
+    const factor = clamp(dist / startDist, 0.3, 3);
+  
     applyUpdate(
       (draft) => {
-        const f = draft.flowers.find((x) => x.id === sd.flowerId);
-        if (!f) return;
+        const df = draft.flowers.find((x) => x.id === sd.flowerId);
+        if (!df) return;
+  
         for (const s of sd.startScales) {
-          const l = f.layers.find((x) => x.id === s.layerId);
+          const l = df.layers.find((x) => x.id === s.layerId);
           if (!l) continue;
           l.scale = clamp(s.scale * factor, 0.3, 3);
         }
@@ -415,7 +521,38 @@ export function Editor(props) {
   };
 
   const selectedFlowerId =
-    selection.kind === "flower" || selection.kind === "layer" || selection.kind === "petal" ? selection.flowerId : null;
+  selection.kind === "flower" ||
+  selection.kind === "layer" ||
+  selection.kind === "petal" ||
+  selection.kind === "petals"
+    ? selection.flowerId
+    : null;
+
+  // 追加：ダッシュ同期トークン（選択が変わった瞬間に更新）
+  const [dashSyncToken, setDashSyncToken] = useState(0);
+
+  useEffect(() => {
+    // 点滅対象になりうる選択のときだけ同期を取り直す
+    if (selection.kind === "petal" || selection.kind === "petals") {
+      setDashSyncToken(Date.now()); // これが “同期の合図”
+    }
+    // flower/layer でも同期したいならここに追加
+  }, [
+    selection.kind,
+    // petal
+    selection.kind === "petal" ? selection.layerId : null,
+    selection.kind === "petal" ? selection.index : null,
+    // petals
+    selection.kind === "petals" ? selection.petals?.length : null,
+  ]);
+
+  // ダッシュ同期用：選択が変わったタイミングで同じ位相から開始させる
+  const dashDelay = useMemo(() => {
+    const period = 0.75;
+    const now = Date.now() / 1000;
+    const phase = now % period;
+    return `-${phase.toFixed(3)}s`;
+  }, [selection]);
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -684,6 +821,7 @@ export function Editor(props) {
                 ref={stageRef}
                 className="h-[520px] w-full bg-white"
                 viewBox={viewBox}
+                style={{ ["--tsumami-delay" as any]: dashDelay }}
                 onPointerDown={(e) => {
                   // Click empty => clear
                   if (e.button === 0 && e.target === e.currentTarget) {
@@ -721,6 +859,7 @@ export function Editor(props) {
                     .tsumami-sel-dash {
                       stroke-dasharray: 4 3;
                       animation: tsumamiBlink 0.75s ease-in-out infinite;
+                      animation-delay: var(--tsumami-delay, 0s);
                     }
                   `}</style>
                 </defs>
@@ -740,9 +879,13 @@ export function Editor(props) {
                     selectedPetal={
                       selection.kind === "petal" ? { layerId: selection.layerId, index: selection.index } : null
                     }
+                    selectedPetals={selection.kind === "petals" && selection.flowerId === f.id ? selection.petals : null}
                     onSelect={() => setSelection({ kind: "flower", flowerId: f.id })}
                     onSelectLayer={(layerId) => setSelection({ kind: "layer", flowerId: f.id, layerId })}
                     onSelectPetal={(layerId, index) => setSelection({ kind: "petal", flowerId: f.id, layerId, index })}
+                    onTogglePetalSelection={(layerId, index, isShiftPressed) =>
+                      togglePetalSelection(f.id, layerId, index, isShiftPressed)
+                    }
                     onBeginDragFromLayerPetal={(layerId, index, e) => beginFlowerDrag(f.id, e, { layerId, index })}
                     onBeginScaleDrag={(mode, e, opts) => beginScaleDrag(mode, f.id, e, opts)}
                     onDoubleClick={() => setSelection({ kind: "flower", flowerId: f.id })}
@@ -757,6 +900,7 @@ export function Editor(props) {
                         return;
                       beginFlowerDrag(f.id, e);
                     }}
+                    dashSyncToken={dashSyncToken}
                   />
                 ))}
               </svg>
@@ -1113,6 +1257,211 @@ export function Editor(props) {
               </PropertyGroup>
             )}
 
+            {selection.kind === "petals" && selectedFlower && selectedPetals.length > 0 && (() => {
+              // 複数選択時のプロパティパネル
+              const petals = selectedPetals;
+              const petalInfo = petals.map((p) => {
+                const layer = selectedFlower.layers.find((l) => l.id === p.layerId);
+                return { ...p, layer };
+              }).filter((p) => p.layer != null);
+
+              // 選択されている花びらの色を取得（オーバーライドがある場合はそれを使用）
+              const getPetalColor = (layerId, index) => {
+                const layer = selectedFlower.layers.find((l) => l.id === layerId);
+                if (!layer) return null;
+                const findPetalOverride = (l, idx) => l?.petalOverrides?.find((o) => o.index === idx) ?? null;
+                const override = findPetalOverride(layer, index);
+                return override?.colorId ?? layer.colorId;
+              };
+
+              // 選択されている花びらの形状を取得（オーバーライドがある場合はそれを使用）
+              const getPetalType = (layerId, index) => {
+                const layer = selectedFlower.layers.find((l) => l.id === layerId);
+                if (!layer) return null;
+                const findPetalOverride = (l, idx) => l?.petalOverrides?.find((o) => o.index === idx) ?? null;
+                const override = findPetalOverride(layer, index);
+                return override?.petalType ?? layer.petalType;
+              };
+
+              // 現在の色と形状をチェック（すべて同じかどうか）
+              const currentColors = petalInfo.map((p) => getPetalColor(p.layerId, p.index));
+              const currentTypes = petalInfo.map((p) => getPetalType(p.layerId, p.index));
+              const allSameColor = currentColors.length > 0 && currentColors.every((c) => c === currentColors[0]);
+              const allSameType = currentTypes.length > 0 && currentTypes.every((t) => t === currentTypes[0]);
+              const displayColorId = allSameColor ? currentColors[0] : "";
+              const displayPetalType = allSameType ? currentTypes[0] : "";
+
+              // 複数花びらの設定を一括更新
+              const updateMultiplePetals = (updates) => {
+                applyUpdate((d) => {
+                  const f = d.flowers.find((x) => x.id === selectedFlower.id);
+                  if (!f) return;
+
+                  for (const petal of petals) {
+                    const l = f.layers.find((x) => x.id === petal.layerId);
+                    if (!l) continue;
+
+                    if (!l.petalOverrides) l.petalOverrides = [];
+                    const existing = l.petalOverrides.find((o) => o.index === petal.index);
+
+                    if (existing) {
+                      // 既存のオーバーライドを更新
+                      if (updates.colorId !== undefined) {
+                        if (updates.colorId === l.colorId) {
+                          // Layerの基本色と同じ場合は削除
+                          delete existing.colorId;
+                        } else {
+                          existing.colorId = updates.colorId;
+                        }
+                      }
+                      if (updates.petalType !== undefined) {
+                        if (updates.petalType === l.petalType) {
+                          // Layerの基本形状と同じ場合は削除
+                          delete existing.petalType;
+                        } else {
+                          existing.petalType = updates.petalType;
+                        }
+                      }
+
+                      // colorId と petalType が両方未指定の場合は削除
+                      if (!existing.colorId && !existing.petalType) {
+                        l.petalOverrides = l.petalOverrides.filter((o) => o.index !== petal.index);
+                        if (l.petalOverrides.length === 0) l.petalOverrides = undefined;
+                      }
+                    } else {
+                      // 新しいオーバーライドを追加
+                      const newOverride = { index: petal.index };
+                      if (updates.colorId !== undefined && updates.colorId !== l.colorId) {
+                        newOverride.colorId = updates.colorId;
+                      }
+                      if (updates.petalType !== undefined && updates.petalType !== l.petalType) {
+                        newOverride.petalType = updates.petalType;
+                      }
+
+                      // colorId または petalType が実際に設定されている場合のみ追加
+                      if (newOverride.colorId !== undefined || newOverride.petalType !== undefined) {
+                        l.petalOverrides.push(newOverride);
+                      }
+                    }
+                  }
+                }, true);
+              };
+
+              const removeAllOverrides = () => {
+                applyUpdate((d) => {
+                  const f = d.flowers.find((x) => x.id === selectedFlower.id);
+                  if (!f) return;
+
+                  for (const petal of petals) {
+                    const l = f.layers.find((x) => x.id === petal.layerId);
+                    if (!l || !l.petalOverrides) continue;
+                    l.petalOverrides = l.petalOverrides.filter((o) => o.index !== petal.index);
+                    if (l.petalOverrides.length === 0) l.petalOverrides = undefined;
+                  }
+                }, true);
+              };
+
+              // 選択されている花びらのLayerの基本設定を確認
+              const hasAnyOverride = petalInfo.some((p) => {
+                const findPetalOverride = (l, idx) => l?.petalOverrides?.find((o) => o.index === idx) ?? null;
+                return findPetalOverride(p.layer, p.index) != null;
+              });
+
+              return (
+                <PropertyGroup title="複数花びら選択">
+                  <div className="rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
+                    <div className="font-semibold">選択中: {petals.length}個の花びら</div>
+                    <div className="mt-1 text-neutral-600">
+                      {petalInfo.map((p, idx) => (
+                        <div key={idx}>
+                          {p.layer.name} / petal #{p.index + 1}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 text-neutral-600">
+                      ここで変更する内容は、選択中のすべての花びらに適用されます。
+                    </div>
+                    {hasAnyOverride && (
+                      <div className="mt-2 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-blue-800">
+                        ⚠ 一部の花びらに個別設定が適用されています
+                      </div>
+                    )}
+                  </div>
+
+                  <Labeled>
+                    <span>colorId（一括変更）</span>
+                    <select
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                      value={displayColorId || ""}
+                      onChange={(e) => {
+                        const newColorId = e.target.value;
+                        updateMultiplePetals({ colorId: newColorId });
+                      }}
+                    >
+                      {!allSameColor && (
+                        <option value="" disabled>
+                          （複数の色が混在）
+                        </option>
+                      )}
+                      {project.palette.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-neutral-600">
+                      {allSameColor && displayColorId && (
+                        <>
+                          <span className="h-3 w-3 rounded" style={{ background: paletteMap.get(displayColorId)?.hex ?? "#999" }} />
+                          <span>{paletteMap.get(displayColorId)?.hex ?? "—"}</span>
+                        </>
+                      )}
+                      {!allSameColor && <span className="text-orange-600">複数の色が混在しています（選択するとすべて同じ色に変更されます）</span>}
+                    </div>
+                  </Labeled>
+
+                  <Labeled>
+                    <span>petalType（一括変更）</span>
+                    <select
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                      value={displayPetalType || ""}
+                      onChange={(e) => {
+                        const newPetalType = e.target.value;
+                        updateMultiplePetals({ petalType: newPetalType });
+                      }}
+                    >
+                      {!allSameType && (
+                        <option value="" disabled>
+                          （複数の形状が混在）
+                        </option>
+                      )}
+                      {PETAL_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                    {!allSameType && (
+                      <div className="mt-1 text-xs text-orange-600">
+                        複数の形状が混在しています（選択するとすべて同じ形状に変更されます）
+                      </div>
+                    )}
+                  </Labeled>
+
+                  {hasAnyOverride && (
+                    <div className="mt-3">
+                      <button
+                        className="w-full rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 hover:bg-red-100"
+                        onClick={removeAllOverrides}
+                      >
+                        すべての個別設定を削除（Layerの基本設定に戻す）
+                      </button>
+                    </div>
+                  )}
+                </PropertyGroup>
+              );
+            })()}
+
             {selection.kind === "petal" && selectedFlower && selectedLayer && selectedPetalIndex !== null && (() => {
               const findPetalOverride = (layer, index) => layer?.petalOverrides?.find((o) => o.index === index) ?? null;
               const petalOverride = findPetalOverride(selectedLayer, selectedPetalIndex);
@@ -1193,7 +1542,8 @@ export function Editor(props) {
                       onChange={(e) => {
                         const newColorId = e.target.value;
                         if (newColorId === selectedLayer.colorId) {
-                          // Layerの基本色と同じ場合は、オーバーライドから削除
+                          // Layerの基本色と同じ場合は、colorIdのオーバーライドを削除
+                          // ただし、petalTypeのオーバーライドがある場合は保持
                           updatePetalOverride({ colorId: undefined });
                         } else {
                           updatePetalOverride({ colorId: newColorId });
@@ -1210,7 +1560,9 @@ export function Editor(props) {
                       <span className="h-3 w-3 rounded" style={{ background: paletteMap.get(effectiveColorId)?.hex ?? "#999" }} />
                       <span>{paletteMap.get(effectiveColorId)?.hex ?? "—"}</span>
                       {petalOverride?.colorId && (
-                        <span className="ml-2 text-blue-600">（個別設定: {paletteMap.get(selectedLayer.colorId)?.name ?? selectedLayer.colorId} → {paletteMap.get(effectiveColorId)?.name ?? effectiveColorId}）</span>
+                        <span className="ml-2 text-blue-600">
+                          （個別設定: {paletteMap.get(selectedLayer.colorId)?.name ?? selectedLayer.colorId} → {paletteMap.get(effectiveColorId)?.name ?? effectiveColorId}）
+                        </span>
                       )}
                     </div>
                   </Labeled>
@@ -1223,7 +1575,8 @@ export function Editor(props) {
                       onChange={(e) => {
                         const newPetalType = e.target.value;
                         if (newPetalType === selectedLayer.petalType) {
-                          // Layerの基本形状と同じ場合は、オーバーライドから削除
+                          // Layerの基本形状と同じ場合は、petalTypeのオーバーライドを削除
+                          // ただし、colorIdのオーバーライドがある場合は保持
                           updatePetalOverride({ petalType: undefined });
                         } else {
                           updatePetalOverride({ petalType: newPetalType });
