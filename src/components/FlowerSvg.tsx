@@ -87,7 +87,7 @@ export function FlowerSvg(props: any) {
             stroke="transparent"
             strokeWidth={8}
             pointerEvents="stroke"
-            style={{ cursor: "ns-resize" }}
+            style={{ cursor: `url("${import.meta.env.BASE_URL}scale_cursor_32.png") 16 16, ns-resize` }}
             onPointerDown={(e) => {
               e.stopPropagation();
               props.onBeginScaleDrag("flower", e);
@@ -277,7 +277,7 @@ export function FlowerSvg(props: any) {
                   stroke="transparent"
                   strokeWidth={8}
                   pointerEvents="stroke"
-                  style={{ cursor: "ns-resize" }}
+                  style={{ cursor: `url("${import.meta.env.BASE_URL}scale_cursor_32.png") 16 16, ns-resize` }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
                     props.onBeginScaleDrag("layer", e, { layerId: layer.id });
