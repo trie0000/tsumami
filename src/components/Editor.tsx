@@ -358,7 +358,7 @@ export function Editor(props) {
 
     // ✅ ドラッグ中はカーソルを回転用に変更（丸矢印）
     if (stageRef.current) {
-      stageRef.current.style.cursor = `url("/rotate_cursor_active_32.png") 16 16, grabbing`;
+      stageRef.current.style.cursor = `url("${import.meta.env.BASE_URL}rotate_cursor_active_32.png") 16 16, grabbing`;
     }
 
     const f = project.flowers.find((x) => x.id === flowerId);

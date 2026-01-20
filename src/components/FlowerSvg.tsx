@@ -103,7 +103,7 @@ export function FlowerSvg(props: any) {
             strokeWidth={6}
             pointerEvents="stroke"
             style={{
-              cursor: `url("/rotate_cursor_32.png") 16 16, grab`,
+              cursor: `url("${import.meta.env.BASE_URL}rotate_cursor_32.png") 16 16, grab`,
             }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -284,7 +284,7 @@ export function FlowerSvg(props: any) {
                       cy={tipY}
                       r={lenL * 0.25}
                       fill="transparent"
-                      style={{ cursor: `url("/rotate_cursor_32.png") 16 16, grab` }}
+                      style={{ cursor: `url("${import.meta.env.BASE_URL}rotate_cursor_32.png") 16 16, grab` }}
                       onPointerDown={(e) => {
                         e.stopPropagation();
                         if (props.onBeginRotationDrag) {
