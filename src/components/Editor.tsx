@@ -524,6 +524,84 @@ export function Editor(props) {
     widthScaleDragRef.current = null;
   };
 
+  // --- Radius drag (layer) ---
+  const radiusDragRef = useRef(null);
+
+  const beginRadiusDrag = (mode, flowerId, e, opts) => {
+    e.preventDefault();
+    e.currentTarget?.setPointerCapture?.(e.pointerId);
+
+    // ✅ ドラッグ中はカーソルをradius変更用に変更（斜め矢印）
+    if (stageRef.current) {
+      stageRef.current.style.cursor = `url("${import.meta.env.BASE_URL}radius_cursor_32.png") 16 16, nwse-resize`;
+    }
+
+    const f = project.flowers.find((x) => x.id === flowerId);
+    if (!f) return;
+
+    const layer = opts?.layerId ? f.layers.find((l) => l.id === opts.layerId) : null;
+    if (!layer) return;
+
+    const p0 = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+
+    // ポインタから花の中心までの距離を計算
+    const dx = p0.x - cx;
+    const dy = p0.y - cy;
+    const startDist = Math.sqrt(dx * dx + dy * dy);
+
+    radiusDragRef.current = {
+      mode,
+      flowerId,
+      layerId: opts?.layerId,
+      startDist: Math.max(1, startDist),
+      startRadius: layer.radius ?? 28,
+    };
+  };
+
+  const updateRadiusDrag = (e) => {
+    const rd = radiusDragRef.current;
+    if (!rd) return;
+
+    const f = project.flowers.find((x) => x.id === rd.flowerId);
+    if (!f) return;
+
+    const p = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+
+    // ポインタから花の中心までの距離を計算
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 距離の差分でradiusを変更（比率ではなく差分で）
+    const delta = dist - rd.startDist;
+    const newRadius = clamp(rd.startRadius + delta, 5, 100);
+
+    applyUpdate(
+      (draft) => {
+        const df = draft.flowers.find((x) => x.id === rd.flowerId);
+        if (!df) return;
+
+        const l = df.layers.find((x) => x.id === rd.layerId);
+        if (l) l.radius = newRadius;
+      },
+      false
+    );
+  };
+
+  const endRadiusDrag = () => {
+    if (!radiusDragRef.current) return;
+    applyUpdate(() => {}, true);
+    // ✅ ドラッグ終了時にカーソルをリセット
+    if (stageRef.current) {
+      stageRef.current.style.cursor = "";
+    }
+    radiusDragRef.current = null;
+  };
+
   // --- Add/Delete ---
   const deleteFlowerById = (flowerId) => {
     applyUpdate((d) => {
@@ -1041,6 +1119,10 @@ export function Editor(props) {
                     updateWidthScaleDrag(e);
                     return;
                   }
+                  if (radiusDragRef.current) {
+                    updateRadiusDrag(e);
+                    return;
+                  }
                   updateFlowerDrag(e);
                   updatePan(e);
                 }}
@@ -1048,6 +1130,7 @@ export function Editor(props) {
                   endRotationDrag();
                   endScaleDrag();
                   endWidthScaleDrag();
+                  endRadiusDrag();
                   endFlowerDrag();
                   endPan();
                 }}
@@ -1055,6 +1138,7 @@ export function Editor(props) {
                   endRotationDrag();
                   endScaleDrag();
                   endWidthScaleDrag();
+                  endRadiusDrag();
                   endFlowerDrag();
                   endPan();
                 }}
@@ -1099,6 +1183,7 @@ export function Editor(props) {
                     onBeginScaleDrag={(mode, e, opts) => beginScaleDrag(mode, f.id, e, opts)}
                     onBeginRotationDrag={(mode, e, opts) => beginRotationDrag(mode, f.id, e, opts)}
                     onBeginWidthScaleDrag={(mode, e, opts) => beginWidthScaleDrag(mode, f.id, e, opts)}
+                    onBeginRadiusDrag={(mode, e, opts) => beginRadiusDrag(mode, f.id, e, opts)}
                     onDoubleClick={() => setSelection({ kind: "flower", flowerId: f.id })}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;

@@ -355,6 +355,32 @@ export function FlowerSvg(props: any) {
                     </g>
                   );
                 })}
+                {/* ✅ radiusハンドル：各花びらの中央（中心線上） */}
+                {Array.from({ length: layer.petalCount }).map((_, i) => {
+                  const rot = layer.offsetAngle + i * step;
+                  const rad = degToRad(rot);
+                  // 花びらの中央点（中心線上、根元と先端の中間）
+                  const midDist = placeR + lenL * 0.5;
+                  const midX = Math.cos(rad) * midDist;
+                  const midY = Math.sin(rad) * midDist;
+                  const handleR = lenL * 0.18;
+                  return (
+                    <circle
+                      key={`radius-handle-${i}`}
+                      cx={midX}
+                      cy={midY}
+                      r={handleR}
+                      fill="transparent"
+                      style={{ cursor: `url("${import.meta.env.BASE_URL}radius_cursor_32.png") 16 16, nwse-resize` }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        if (props.onBeginRadiusDrag) {
+                          props.onBeginRadiusDrag("layer", e, { layerId: layer.id });
+                        }
+                      }}
+                    />
+                  );
+                })}
               </g>
             )}
           </g>
