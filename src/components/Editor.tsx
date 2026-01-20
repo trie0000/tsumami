@@ -4,6 +4,19 @@
 // 花びらの個別編集（色・形状の変更）機能を含む
 
 import { useEffect, useMemo, useRef, useState } from "react";
+
+// ✅ 回転カーソル（丸矢印）のSVGデータURI
+// 円形の矢印で、始点と終点の両方が矢印になっている（始点と終点の間をあける）
+const ROTATE_CURSOR_SVG = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <path d="M 8 4 A 9 9 0 0 1 16 4" fill="none" stroke="#000" stroke-width="1.5" stroke-dasharray="0 3 12 3"/>
+  <path d="M 7.5 4.5 L 9.5 6.5 L 8 4.5 Z" fill="#000"/>
+  <path d="M 16.5 4.5 L 14.5 6.5 L 16 4.5 Z" fill="#000"/>
+</svg>`);
+const ROTATE_CURSOR_ACTIVE_SVG = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <path d="M 8 4 A 9 9 0 0 1 16 4" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="0 3 12 3"/>
+  <path d="M 7.5 4.5 L 9.5 6.5 L 8 4.5 Z" fill="#000"/>
+  <path d="M 16.5 4.5 L 14.5 6.5 L 16 4.5 Z" fill="#000"/>
+</svg>`);
 import { clamp, uid } from "../utils/helpers";
 import { PETAL_TYPES } from "../utils/constants";
 import { TreeItem } from "./TreeItem";
@@ -262,6 +275,11 @@ export function Editor(props) {
     e.preventDefault();
     e.currentTarget?.setPointerCapture?.(e.pointerId);
   
+    // ✅ ドラッグ中はカーソルを拡大縮小用に変更
+    if (stageRef.current) {
+      stageRef.current.style.cursor = "ns-resize";
+    }
+  
     const f = project.flowers.find((x) => x.id === flowerId);
     if (!f) return;
   
@@ -324,7 +342,96 @@ export function Editor(props) {
   const endScaleDrag = () => {
     if (!scaleDragRef.current) return;
     applyUpdate(() => {}, true);
+    // ✅ ドラッグ終了時にカーソルをリセット
+    if (stageRef.current) {
+      stageRef.current.style.cursor = "";
+    }
     scaleDragRef.current = null;
+  };
+
+  // --- Rotation drag (layer/flower) ---
+  const rotationDragRef = useRef(null);
+
+  const beginRotationDrag = (mode, flowerId, e, opts) => {
+    e.preventDefault();
+    e.currentTarget?.setPointerCapture?.(e.pointerId);
+
+    // ✅ ドラッグ中はカーソルを回転用に変更（丸矢印）
+    if (stageRef.current) {
+      stageRef.current.style.cursor = `url("/rotate_cursor_active_32.png") 16 16, grabbing`;
+    }
+
+    const f = project.flowers.find((x) => x.id === flowerId);
+    if (!f) return;
+
+    const p0 = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+
+    // 開始角度を計算
+    const startAngle = Math.atan2(p0.y - cy, p0.x - cx) * (180 / Math.PI);
+
+    const startRotation =
+      mode === "layer" && opts?.layerId
+        ? f.layers.find((l) => l.id === opts.layerId)?.offsetAngle ?? 0
+        : f.rotation ?? 0;
+
+    rotationDragRef.current = {
+      mode,
+      flowerId,
+      layerId: opts?.layerId,
+      startAngle,
+      startRotation,
+    };
+  };
+
+  const updateRotationDrag = (e) => {
+    const rd = rotationDragRef.current;
+    if (!rd) return;
+
+    const f = project.flowers.find((x) => x.id === rd.flowerId);
+    if (!f) return;
+
+    const p = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+
+    // 現在角度を計算
+    const currentAngle = Math.atan2(p.y - cy, p.x - cx) * (180 / Math.PI);
+
+    // 角度差分を計算
+    let deltaAngle = currentAngle - rd.startAngle;
+
+    // 角度を-180〜180の範囲に正規化
+    while (deltaAngle > 180) deltaAngle -= 360;
+    while (deltaAngle < -180) deltaAngle += 360;
+
+    const newRotation = rd.startRotation + deltaAngle;
+
+    applyUpdate(
+      (draft) => {
+        const df = draft.flowers.find((x) => x.id === rd.flowerId);
+        if (!df) return;
+
+        if (rd.mode === "layer" && rd.layerId) {
+          const l = df.layers.find((x) => x.id === rd.layerId);
+          if (l) l.offsetAngle = newRotation;
+        } else {
+          df.rotation = newRotation;
+        }
+      },
+      false
+    );
+  };
+
+  const endRotationDrag = () => {
+    if (!rotationDragRef.current) return;
+    applyUpdate(() => {}, true);
+    // ✅ ドラッグ終了時にカーソルをリセット
+    if (stageRef.current) {
+      stageRef.current.style.cursor = "";
+    }
+    rotationDragRef.current = null;
   };
 
   // --- Add/Delete ---
@@ -832,6 +939,10 @@ export function Editor(props) {
                   if (e.button === 1) beginPan(e);
                 }}
                 onPointerMove={(e) => {
+                  if (rotationDragRef.current) {
+                    updateRotationDrag(e);
+                    return;
+                  }
                   if (scaleDragRef.current) {
                     updateScaleDrag(e);
                     return;
@@ -840,11 +951,13 @@ export function Editor(props) {
                   updatePan(e);
                 }}
                 onPointerUp={() => {
+                  endRotationDrag();
                   endScaleDrag();
                   endFlowerDrag();
                   endPan();
                 }}
                 onPointerLeave={() => {
+                  endRotationDrag();
                   endScaleDrag();
                   endFlowerDrag();
                   endPan();
@@ -888,6 +1001,7 @@ export function Editor(props) {
                     }
                     onBeginDragFromLayerPetal={(layerId, index, e) => beginFlowerDrag(f.id, e, { layerId, index })}
                     onBeginScaleDrag={(mode, e, opts) => beginScaleDrag(mode, f.id, e, opts)}
+                    onBeginRotationDrag={(mode, e, opts) => beginRotationDrag(mode, f.id, e, opts)}
                     onDoubleClick={() => setSelection({ kind: "flower", flowerId: f.id })}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;

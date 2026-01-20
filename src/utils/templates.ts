@@ -15,56 +15,64 @@ export function makeTemplateMaruKiku({ title, fabricSquareSize } = {}) {
   const createdAt = nowIso();
   const palette = makeDefaultPalette();
 
+  // ✅ 外側のレイヤーの花びらが内側のレイヤーの花びらの中央に来るように角度を調整
+  // Center レイヤー（最も内側）
+  const centerLayer = {
+    id: uid("lay"),
+    name: "Center",
+    order: 3,
+    petalType: "丸つまみ",
+    petalCount: 6,
+    radius: 12,
+    scale: 1,
+    widthScale: 1,
+    offsetAngle: 0,
+    colorId: "col_white",
+    visible: true,
+    locked: false,
+  };
+
+  // Inner レイヤー：Centerレイヤーの花びらの中央に来るように
+  const innerStep = 360 / centerLayer.petalCount;
+  const innerLayer = {
+    id: uid("lay"),
+    name: "Inner",
+    order: 2,
+    petalType: "丸つまみ",
+    petalCount: 6,
+    radius: 20,
+    scale: 1,
+    widthScale: 1,
+    offsetAngle: centerLayer.offsetAngle + innerStep / 2,
+    colorId: "col_white",
+    visible: true,
+    locked: false,
+  };
+
+  // Outer レイヤー：Innerレイヤーの花びらの中央に来るように
+  const outerStep = 360 / innerLayer.petalCount;
+  const outerLayer = {
+    id: uid("lay"),
+    name: "Outer",
+    order: 1,
+    petalType: "丸つまみ",
+    petalCount: 6,
+    radius: 28,
+    scale: 1,
+    widthScale: 1,
+    offsetAngle: innerLayer.offsetAngle + outerStep / 2,
+    colorId: "col_green",
+    visible: true,
+    locked: false,
+  };
+
   const flower = {
     id: uid("flw"),
     name: "Flower 1",
     position: { x: 0, y: 0 },
     flowerDiameter: 60,
     rotation: 0,
-    layers: [
-      {
-        id: uid("lay"),
-        name: "Outer",
-        order: 1,
-        petalType: "丸つまみ",
-        petalCount: 6,
-        radius: 28,
-        scale: 1,
-        widthScale: 1,
-        offsetAngle: 0,
-        colorId: "col_green",
-        visible: true,
-        locked: false,
-      },
-      {
-        id: uid("lay"),
-        name: "Inner",
-        order: 2,
-        petalType: "丸つまみ",
-        petalCount: 6,
-        radius: 20,
-        scale: 1,
-        widthScale: 1,
-        offsetAngle: 10,
-        colorId: "col_white",
-        visible: true,
-        locked: false,
-      },
-      {
-        id: uid("lay"),
-        name: "Center",
-        order: 3,
-        petalType: "丸つまみ",
-        petalCount: 6,
-        radius: 12,
-        scale: 1,
-        widthScale: 1,
-        offsetAngle: 0,
-        colorId: "col_white",
-        visible: true,
-        locked: false,
-      },
-    ],
+    layers: [outerLayer, innerLayer, centerLayer],
   };
 
   return normalizeProject({
@@ -85,56 +93,64 @@ export function makeTemplateKenKiku({ title, fabricSquareSize } = {}) {
   const createdAt = nowIso();
   const palette = makeDefaultPalette();
 
+  // ✅ 外側のレイヤーの花びらが内側のレイヤーの花びらの中央に来るように角度を調整
+  // Center レイヤー（最も内側）
+  const centerLayer = {
+    id: uid("lay"),
+    name: "Center",
+    order: 3,
+    petalType: "丸つまみ",
+    petalCount: 6,
+    radius: 14,
+    scale: 1,
+    widthScale: 1,
+    offsetAngle: 0,
+    colorId: "col_yellow",
+    visible: true,
+    locked: false,
+  };
+
+  // Inner レイヤー：Centerレイヤーの花びらの中央に来るように
+  const innerStep = 360 / centerLayer.petalCount;
+  const innerLayer = {
+    id: uid("lay"),
+    name: "Inner",
+    order: 2,
+    petalType: "剣つまみ",
+    petalCount: 6,
+    radius: 24,
+    scale: 1,
+    widthScale: 1,
+    offsetAngle: centerLayer.offsetAngle + innerStep / 2,
+    colorId: "col_pink",
+    visible: true,
+    locked: false,
+  };
+
+  // Outer レイヤー：Innerレイヤーの花びらの中央に来るように
+  const outerStep = 360 / innerLayer.petalCount;
+  const outerLayer = {
+    id: uid("lay"),
+    name: "Outer",
+    order: 1,
+    petalType: "剣つまみ",
+    petalCount: 6,
+    radius: 32,
+    scale: 1,
+    widthScale: 1,
+    offsetAngle: innerLayer.offsetAngle + outerStep / 2,
+    colorId: "col_red",
+    visible: true,
+    locked: false,
+  };
+
   const flower = {
     id: uid("flw"),
     name: "Flower 1",
     position: { x: 0, y: 0 },
     flowerDiameter: 70,
     rotation: 0,
-    layers: [
-      {
-        id: uid("lay"),
-        name: "Outer",
-        order: 1,
-        petalType: "剣つまみ",
-        petalCount: 6,
-        radius: 32,
-        scale: 1,
-        widthScale: 1,
-        offsetAngle: 0,
-        colorId: "col_red",
-        visible: true,
-        locked: false,
-      },
-      {
-        id: uid("lay"),
-        name: "Inner",
-        order: 2,
-        petalType: "剣つまみ",
-        petalCount: 6,
-        radius: 24,
-        scale: 1,
-        widthScale: 1,
-        offsetAngle: 7,
-        colorId: "col_pink",
-        visible: true,
-        locked: false,
-      },
-      {
-        id: uid("lay"),
-        name: "Center",
-        order: 3,
-        petalType: "丸つまみ",
-        petalCount: 6,
-        radius: 14,
-        scale: 1,
-        widthScale: 1,
-        offsetAngle: 0,
-        colorId: "col_yellow",
-        visible: true,
-        locked: false,
-      },
-    ],
+    layers: [outerLayer, innerLayer, centerLayer],
   };
 
   return normalizeProject({

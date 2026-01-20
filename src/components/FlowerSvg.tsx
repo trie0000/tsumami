@@ -14,6 +14,7 @@
 import { useMemo } from "react";
 import { computePetalSizing, degToRad, PETAL_OUTWARD_FRACTION, petalUnitPath } from "../utils/geometry";
 
+
 export function FlowerSvg(props: any) {
   const { flower, project, paletteMap } = props;
 
@@ -28,11 +29,15 @@ export function FlowerSvg(props: any) {
     let m = 12;
     for (const l of layers) {
       if (!l.visible) continue;
-      const placeR = l.radius;
       const petalS = l.scale ?? 1;
       const lenL = length * petalS;
-      const outwardTip = lenL * PETAL_OUTWARD_FRACTION;
-      m = Math.max(m, placeR + outwardTip);
+      // ✅ レイヤー選択時の円と同様に、花びらの外側頂点を通るように計算
+      // ✅ scaleに依存しないように、基準のlengthを使用して根元の座標を固定
+      const R_PULL = 0.28;
+      const placeR = Math.max(0, l.radius - length * R_PULL);
+      // 花びらの先端（外側頂点）までの距離
+      const layerOuterR = placeR + lenL;
+      m = Math.max(m, layerOuterR);
     }
     return m;
   }, [layers, length]);
@@ -75,14 +80,37 @@ export function FlowerSvg(props: any) {
             vectorEffect="non-scaling-stroke"
             pointerEvents="none"
           />
+          {/* スケール用の円：内側のみ */}
           <circle
             r={flowerOuterR}
             fill="none"
             stroke="transparent"
-            strokeWidth={14}
+            strokeWidth={8}
             pointerEvents="stroke"
             style={{ cursor: "ns-resize" }}
-            onPointerDown={(e) => props.onBeginScaleDrag("flower", e)}
+            onPointerDown={(e) => {
+              // 外側付近でない場合のみスケール
+              const p = { x: e.clientX, y: e.clientY };
+              // 外側付近の判定は回転ハンドルで行う
+              props.onBeginScaleDrag("flower", e);
+            }}
+          />
+          {/* ✅ 回転ハンドル：外側の円周上（花びらの外側頂点付近） */}
+          <circle
+            r={flowerOuterR}
+            fill="none"
+            stroke="transparent"
+            strokeWidth={6}
+            pointerEvents="stroke"
+            style={{
+              cursor: `url("/rotate_cursor_32.png") 16 16, grab`,
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              if (props.onBeginRotationDrag) {
+                props.onBeginRotationDrag("flower", e);
+              }
+            }}
           />
         </g>
       )}
@@ -101,14 +129,19 @@ export function FlowerSvg(props: any) {
         const widL = widBase * petalScale;
 
         // ✅ 中心の隙間を詰める（必要なら 0.20〜0.40 で調整）
+        // ✅ scaleに依存しないように、基準のlengthを使用して根元の座標を固定
         const R_PULL = 0.28;
-        const placeR = Math.max(0, layer.radius - lenL * R_PULL);
+        const placeR = Math.max(0, layer.radius - length * R_PULL);
 
         const unitMaru = petalUnitPath("丸つまみ");
         const unitKen = petalUnitPath("剣つまみ");
 
-        const outwardTip = lenL * PETAL_OUTWARD_FRACTION;
-        const layerOuterR = placeR + outwardTip;
+        // ✅ 花びらの外側の頂点（先端）までの距離
+        // ユニット形状では先端が +X方向で X=1 が先端なので、placeR から lenL だけ外側
+        // しかし実際のユニット形状（丸つまみ）では最大X座標が約1.1なので、それを考慮
+        // より正確には、すべての花びらの外側頂点を通る最大半径を計算する必要があるが、
+        // 簡易的には placeR + lenL を使用（ユニット座標で先端は X=1）
+        const layerOuterR = placeR + lenL;
 
         const isLayerSelected = props.isSelected && props.selectedLayerId === layer.id;
 
@@ -207,11 +240,12 @@ export function FlowerSvg(props: any) {
                       pointerEvents="none"
                     />
                   )}
+
                 </g>
               );
             })}
 
-            {/* layer scale handle：レイヤー選択中 かつ レイヤー内に花びら選択がない場合のみ */}
+            {/* layer handle：レイヤー選択中 かつ レイヤー内に花びら選択がない場合のみ */}
             {isLayerSelected && !isAnyPetalSelectedInLayer && (
               <g>
                 <circle
@@ -223,15 +257,43 @@ export function FlowerSvg(props: any) {
                   vectorEffect="non-scaling-stroke"
                   pointerEvents="none"
                 />
+                {/* ✅ スケールハンドル：外周円上（花びら間のみ） */}
                 <circle
                   r={layerOuterR}
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={14}
+                  strokeWidth={8}
                   pointerEvents="stroke"
                   style={{ cursor: "ns-resize" }}
-                  onPointerDown={(e) => props.onBeginScaleDrag("layer", e, { layerId: layer.id })}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    props.onBeginScaleDrag("layer", e, { layerId: layer.id });
+                  }}
                 />
+                {/* ✅ 回転ハンドル：各花びらの頂点付近（スケールより上に配置） */}
+                {Array.from({ length: layer.petalCount }).map((_, i) => {
+                  const rot = layer.offsetAngle + i * step;
+                  const rad = degToRad(rot);
+                  // 花びら頂点の位置（外周円上）
+                  const tipX = Math.cos(rad) * layerOuterR;
+                  const tipY = Math.sin(rad) * layerOuterR;
+                  return (
+                    <circle
+                      key={`rot-handle-${i}`}
+                      cx={tipX}
+                      cy={tipY}
+                      r={lenL * 0.25}
+                      fill="transparent"
+                      style={{ cursor: `url("/rotate_cursor_32.png") 16 16, grab` }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        if (props.onBeginRotationDrag) {
+                          props.onBeginRotationDrag("layer", e, { layerId: layer.id });
+                        }
+                      }}
+                    />
+                  );
+                })}
               </g>
             )}
           </g>
