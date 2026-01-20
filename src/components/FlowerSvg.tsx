@@ -80,7 +80,7 @@ export function FlowerSvg(props: any) {
             vectorEffect="non-scaling-stroke"
             pointerEvents="none"
           />
-          {/* スケール用の円：内側のみ */}
+          {/* スケール用の円：外周全体 */}
           <circle
             r={flowerOuterR}
             fill="none"
@@ -89,29 +89,42 @@ export function FlowerSvg(props: any) {
             pointerEvents="stroke"
             style={{ cursor: "ns-resize" }}
             onPointerDown={(e) => {
-              // 外側付近でない場合のみスケール
-              const p = { x: e.clientX, y: e.clientY };
-              // 外側付近の判定は回転ハンドルで行う
+              e.stopPropagation();
               props.onBeginScaleDrag("flower", e);
             }}
           />
-          {/* ✅ 回転ハンドル：外側の円周上（花びらの外側頂点付近） */}
-          <circle
-            r={flowerOuterR}
-            fill="none"
-            stroke="transparent"
-            strokeWidth={6}
-            pointerEvents="stroke"
-            style={{
-              cursor: `url("${import.meta.env.BASE_URL}rotate_cursor_32.png") 16 16, grab`,
-            }}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              if (props.onBeginRotationDrag) {
-                props.onBeginRotationDrag("flower", e);
-              }
-            }}
-          />
+          {/* ✅ 回転ハンドル：各花びらの頂点付近（スケールより上に配置） */}
+          {layers.filter((l: any) => l.visible).map((layer: any) => {
+            const petalScale = layer.scale ?? 1;
+            const lenL = length * petalScale;
+            const R_PULL = 0.28;
+            const placeR = Math.max(0, layer.radius - length * R_PULL);
+            const layerOuterR = placeR + lenL;
+            const step = 360 / Math.max(1, layer.petalCount);
+
+            return Array.from({ length: layer.petalCount }).map((_, i) => {
+              const rot = layer.offsetAngle + i * step;
+              const rad = degToRad(rot);
+              const tipX = Math.cos(rad) * layerOuterR;
+              const tipY = Math.sin(rad) * layerOuterR;
+              return (
+                <circle
+                  key={`flower-rot-${layer.id}-${i}`}
+                  cx={tipX}
+                  cy={tipY}
+                  r={lenL * 0.25}
+                  fill="transparent"
+                  style={{ cursor: `url("${import.meta.env.BASE_URL}rotate_cursor_32.png") 16 16, grab` }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    if (props.onBeginRotationDrag) {
+                      props.onBeginRotationDrag("flower", e);
+                    }
+                  }}
+                />
+              );
+            });
+          })}
         </g>
       )}
 
