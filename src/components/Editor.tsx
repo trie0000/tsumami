@@ -1350,7 +1350,7 @@ export function Editor(props) {
                     <input
                       type="number"
                       className="w-full rounded-xl border px-3 py-2 text-sm"
-                      value={selectedLayer.scale ?? 1}
+                      value={Number(selectedLayer.scale ?? 1).toFixed(2)}
                       min={0.4}
                       max={2.5}
                       step={0.05}
@@ -1373,7 +1373,7 @@ export function Editor(props) {
                   <input
                     type="number"
                     className="w-full rounded-xl border px-3 py-2 text-sm"
-                    value={selectedLayer.widthScale ?? 1}
+                    value={Number(selectedLayer.widthScale ?? 1).toFixed(2)}
                     min={0.5}
                     max={1.8}
                     step={0.05}
@@ -1395,7 +1395,7 @@ export function Editor(props) {
                   <input
                     type="number"
                     className="w-full rounded-xl border px-3 py-2 text-sm"
-                    value={selectedLayer.offsetAngle}
+                    value={Number(selectedLayer.offsetAngle ?? 0).toFixed(2)}
                     onChange={(e) =>
                       applyUpdate((d) => {
                         const f = d.flowers.find((x) => x.id === selectedFlower.id);
