@@ -434,6 +434,96 @@ export function Editor(props) {
     rotationDragRef.current = null;
   };
 
+  // --- Width Scale drag (layer) ---
+  const widthScaleDragRef = useRef(null);
+
+  const beginWidthScaleDrag = (mode, flowerId, e, opts) => {
+    e.preventDefault();
+    e.currentTarget?.setPointerCapture?.(e.pointerId);
+
+    // ✅ ドラッグ中はカーソルを幅変更用に変更
+    if (stageRef.current) {
+      stageRef.current.style.cursor = `url("${import.meta.env.BASE_URL}width_cursor_32.png") 16 16, ew-resize`;
+    }
+
+    const f = project.flowers.find((x) => x.id === flowerId);
+    if (!f) return;
+
+    const layer = opts?.layerId ? f.layers.find((l) => l.id === opts.layerId) : null;
+    if (!layer) return;
+
+    const p0 = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+
+    // 花びらの向き（中心線の角度）を計算
+    const petalIndex = opts?.petalIndex ?? 0;
+    const step = 360 / Math.max(1, layer.petalCount);
+    const petalAngle = (layer.offsetAngle + petalIndex * step + f.rotation) * (Math.PI / 180);
+
+    // ポインタの中心線からの距離を計算（垂直方向）
+    const dx = p0.x - cx;
+    const dy = p0.y - cy;
+    // 中心線に垂直な方向のベクトル
+    const perpX = -Math.sin(petalAngle);
+    const perpY = Math.cos(petalAngle);
+    // 垂直方向への投影距離
+    const startDist = Math.abs(dx * perpX + dy * perpY);
+
+    widthScaleDragRef.current = {
+      mode,
+      flowerId,
+      layerId: opts?.layerId,
+      petalAngle,
+      startDist: Math.max(1, startDist),
+      startWidthScale: layer.widthScale ?? 1,
+    };
+  };
+
+  const updateWidthScaleDrag = (e) => {
+    const wd = widthScaleDragRef.current;
+    if (!wd) return;
+
+    const f = project.flowers.find((x) => x.id === wd.flowerId);
+    if (!f) return;
+
+    const p = clientToSvgPoint(e);
+    const cx = f.position.x;
+    const cy = f.position.y;
+
+    // ポインタの中心線からの距離を計算（垂直方向）
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const perpX = -Math.sin(wd.petalAngle);
+    const perpY = Math.cos(wd.petalAngle);
+    const dist = Math.abs(dx * perpX + dy * perpY);
+
+    // 距離の比率でwidthScaleを変更
+    const factor = clamp(dist / wd.startDist, 0.3, 3);
+    const newWidthScale = clamp(wd.startWidthScale * factor, 0.3, 3);
+
+    applyUpdate(
+      (draft) => {
+        const df = draft.flowers.find((x) => x.id === wd.flowerId);
+        if (!df) return;
+
+        const l = df.layers.find((x) => x.id === wd.layerId);
+        if (l) l.widthScale = newWidthScale;
+      },
+      false
+    );
+  };
+
+  const endWidthScaleDrag = () => {
+    if (!widthScaleDragRef.current) return;
+    applyUpdate(() => {}, true);
+    // ✅ ドラッグ終了時にカーソルをリセット
+    if (stageRef.current) {
+      stageRef.current.style.cursor = "";
+    }
+    widthScaleDragRef.current = null;
+  };
+
   // --- Add/Delete ---
   const deleteFlowerById = (flowerId) => {
     applyUpdate((d) => {
@@ -947,18 +1037,24 @@ export function Editor(props) {
                     updateScaleDrag(e);
                     return;
                   }
+                  if (widthScaleDragRef.current) {
+                    updateWidthScaleDrag(e);
+                    return;
+                  }
                   updateFlowerDrag(e);
                   updatePan(e);
                 }}
                 onPointerUp={() => {
                   endRotationDrag();
                   endScaleDrag();
+                  endWidthScaleDrag();
                   endFlowerDrag();
                   endPan();
                 }}
                 onPointerLeave={() => {
                   endRotationDrag();
                   endScaleDrag();
+                  endWidthScaleDrag();
                   endFlowerDrag();
                   endPan();
                 }}
@@ -1002,6 +1098,7 @@ export function Editor(props) {
                     onBeginDragFromLayerPetal={(layerId, index, e) => beginFlowerDrag(f.id, e, { layerId, index })}
                     onBeginScaleDrag={(mode, e, opts) => beginScaleDrag(mode, f.id, e, opts)}
                     onBeginRotationDrag={(mode, e, opts) => beginRotationDrag(mode, f.id, e, opts)}
+                    onBeginWidthScaleDrag={(mode, e, opts) => beginWidthScaleDrag(mode, f.id, e, opts)}
                     onDoubleClick={() => setSelection({ kind: "flower", flowerId: f.id })}
                     onPointerDown={(e) => {
                       if (e.button !== 0) return;

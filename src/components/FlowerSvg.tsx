@@ -307,6 +307,54 @@ export function FlowerSvg(props: any) {
                     />
                   );
                 })}
+                {/* ✅ 幅スケールハンドル：各花びらの側面（左右） */}
+                {Array.from({ length: layer.petalCount }).map((_, i) => {
+                  const rot = layer.offsetAngle + i * step;
+                  const rad = degToRad(rot);
+                  // 花びらの中間点（長さの半分の位置）
+                  const midDist = placeR + lenL * 0.5;
+                  const midX = Math.cos(rad) * midDist;
+                  const midY = Math.sin(rad) * midDist;
+                  // 花びらの幅方向（rotに垂直）
+                  const perpRad = rad + Math.PI / 2;
+                  const sideOffset = widL * 0.5;
+                  // 左右のハンドル位置
+                  const leftX = midX + Math.cos(perpRad) * sideOffset;
+                  const leftY = midY + Math.sin(perpRad) * sideOffset;
+                  const rightX = midX - Math.cos(perpRad) * sideOffset;
+                  const rightY = midY - Math.sin(perpRad) * sideOffset;
+                  const handleR = lenL * 0.15;
+                  return (
+                    <g key={`width-handle-${i}`}>
+                      <circle
+                        cx={leftX}
+                        cy={leftY}
+                        r={handleR}
+                        fill="transparent"
+                        style={{ cursor: `url("${import.meta.env.BASE_URL}width_cursor_32.png") 16 16, ew-resize` }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          if (props.onBeginWidthScaleDrag) {
+                            props.onBeginWidthScaleDrag("layer", e, { layerId: layer.id, petalIndex: i });
+                          }
+                        }}
+                      />
+                      <circle
+                        cx={rightX}
+                        cy={rightY}
+                        r={handleR}
+                        fill="transparent"
+                        style={{ cursor: `url("${import.meta.env.BASE_URL}width_cursor_32.png") 16 16, ew-resize` }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          if (props.onBeginWidthScaleDrag) {
+                            props.onBeginWidthScaleDrag("layer", e, { layerId: layer.id, petalIndex: i });
+                          }
+                        }}
+                      />
+                    </g>
+                  );
+                })}
               </g>
             )}
           </g>
