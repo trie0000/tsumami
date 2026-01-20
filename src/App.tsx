@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { clamp, deepCopy, nowIso, uid } from "./utils/helpers";
+import { clamp, deepCopy, nowIso } from "./utils/helpers";
 import { normalizeProject } from "./utils/normalization";
 import { loadSavedProjects, deleteSavedProject, upsertSavedProject } from "./utils/storage";
 import { makeTemplateMaruKiku, makeTemplateKenKiku, cloneFlowerWithNewIds } from "./utils/templates";
@@ -25,23 +25,23 @@ import { Recipe } from "./components/Recipe";
  */
 
 export default function TsumamiDesignerMVP() {
-  const [view, setView] = useState("home");
-  const [saved, setSaved] = useState([]);
-  const [project, setProject] = useState(null);
-  const [selection, setSelection] = useState({ kind: "project" });
+  const [view, setView] = useState<string>("home");
+  const [saved, setSaved] = useState<any[]>([]);
+  const [project, setProject] = useState<any>(null);
+  const [selection, setSelection] = useState<any>({ kind: "project" });
 
   // history
-  const [hist, setHist] = useState([]);
+  const [hist, setHist] = useState<string[]>([]);
   const [histIndex, setHistIndex] = useState(0);
 
   // drag state (flower move)
-  const dragRef = useRef(null);
+  const dragRef = useRef<any>(null);
 
   // clipboard
-  const flowerClipboardRef = useRef(null);
+  const flowerClipboardRef = useRef<any>(null);
 
   // toast
-  const [toast, setToast] = useState(null);
+  const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     const t = toast ? window.setTimeout(() => setToast(null), 2200) : null;
     return () => {
@@ -53,13 +53,13 @@ export default function TsumamiDesignerMVP() {
     setSaved(loadSavedProjects());
   }, []);
 
-  function resetHistory(p) {
+  function resetHistory(p: any) {
     const snap = JSON.stringify(p);
     setHist([snap]);
     setHistIndex(0);
   }
 
-  function applyProjectUpdate(mutator, commitHistory = true) {
+  function applyProjectUpdate(mutator: (draft: any) => void, commitHistory = true) {
     if (!project) return;
     const next = deepCopy(project);
     mutator(next);
@@ -117,7 +117,7 @@ export default function TsumamiDesignerMVP() {
     setToast("JSON exported");
   }
 
-  function importJson(file) {
+  function importJson(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -136,7 +136,7 @@ export default function TsumamiDesignerMVP() {
     reader.readAsText(file);
   }
 
-  function goEditorWithNew(p) {
+  function goEditorWithNew(p: any) {
     const n = normalizeProject(p);
     setProject(n);
     setSelection({ kind: "project" });
@@ -144,7 +144,7 @@ export default function TsumamiDesignerMVP() {
     setView("editor");
   }
 
-  function getSelectedFlowerIdFromSelection(sel) {
+  function getSelectedFlowerIdFromSelection(sel: any) {
     if (!sel) return null;
     if (sel.kind === "flower" || sel.kind === "layer" || sel.kind === "petal") return sel.flowerId;
     return null;
@@ -184,7 +184,7 @@ export default function TsumamiDesignerMVP() {
     setToast("Flower pasted");
   }
 
-  function arrangeSelectedFlower(action) {
+  function arrangeSelectedFlower(action: string) {
     if (!project) return;
     const flowerId = getSelectedFlowerIdFromSelection(selection);
     if (!flowerId) return;
@@ -227,8 +227,8 @@ export default function TsumamiDesignerMVP() {
 
   // keyboard shortcuts
   useEffect(() => {
-    function isTypingTarget(t) {
-      const el = t;
+    function isTypingTarget(t: EventTarget | null) {
+      const el = t as HTMLElement | null;
       if (!el) return false;
       const tag = String(el.tagName || "").toLowerCase();
       return tag === "input" || tag === "textarea" || tag === "select" || !!el.isContentEditable;
